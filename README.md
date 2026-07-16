@@ -78,12 +78,43 @@ step possible.
      add your computer's `http://192.168.x.x:5173` origin, enable the flag, and relaunch Chrome.
    - Alternative: put the dev server behind a tunnel that provides HTTPS (e.g. `npx localtunnel`
      or similar), or generate a local TLS cert and pass it to Vite's `server.https` option.
+   - Or just use the deployed HTTPS URL from the section below — no flag needed.
 5. On phone A, tap **Create Room** — it will show a room ID, a Copy button, and a QR code.
 6. On phone B, tap **Join Room**, either type the room ID or scan the QR code manually (this POC
    doesn't include a camera QR scanner — the QR code is meant to be read by the other phone's
    camera app / a separate scanner, then the ID typed in), and tap **Join**.
 7. Once connected you'll land on the Call Screen with a timer, connection quality chip, and
    controls for mute/end call/audio settings/stats.
+
+## Testing across two different networks (not just local WiFi)
+
+The LAN setup above is enough when both phones share the same WiFi, but if the other person
+is elsewhere (different WiFi, mobile data, etc.) two extra things come into play:
+
+1. **The page needs a public HTTPS URL** instead of your machine's local IP. This repo is set
+   up to deploy a static build to GitHub Pages:
+
+   ```bash
+   npm run deploy
+   ```
+
+   This builds the app and publishes `dist/` to the `gh-pages` branch. The first time, enable
+   Pages once in the repo's Settings → Pages → "Deploy from a branch" → branch `gh-pages`,
+   folder `/ (root)`. After that it's live at `https://<your-github-username>.github.io/HFAC_Test1/`.
+   Re-run `npm run deploy` any time you want to publish new changes — pushing to `main` does
+   **not** auto-deploy.
+
+   Anyone with that URL can create/join rooms — there's no auth, so don't treat room IDs as a
+   security boundary, and don't deploy anything sensitive this way.
+
+2. **NAT traversal needs more than STUN.** On a shared LAN, PeerJS's default STUN-only ICE
+   config almost always finds a direct path. Across two arbitrary networks — especially if
+   either side is on mobile data behind carrier-grade NAT, or a restrictive WiFi (school,
+   corporate) — STUN alone frequently can't find a direct path at all, and the call fails to
+   connect rather than just sounding worse. `src/services/peer/peerService.ts` adds a public
+   TURN relay (the Open Relay Project's free demo servers) as a fallback for exactly this case.
+   If a direct/STUN path isn't found, audio relays through that third-party server instead —
+   fine for a POC, but worth knowing if you care about who's in the media path.
 
 ## How to test with wired headphones
 
@@ -163,3 +194,7 @@ Suggested comparison protocol:
   consistently for Bluetooth.
 - **Two-word+digits room IDs instead of PeerJS's default UUID**, purely so a human can read one
   aloud or type it manually on the other phone during testing.
+- **Public demo TURN server, not a private one.** Cross-network testing needs *some* TURN
+  fallback or many NAT combinations simply can't connect; standing up a private TURN server is
+  out of scope for a throwaway POC, so this uses the Open Relay Project's free public relay
+  instead. Don't rely on this for anything beyond local experimentation.
