@@ -8,6 +8,7 @@ dist-ssr
 
 # Build artifacts
 *.tsbuildinfo
+vite.config.js
 
 # Logs
 npm-debug.log*

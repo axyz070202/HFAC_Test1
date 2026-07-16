@@ -3,11 +3,42 @@ import { installSdpMunging } from '../audio/sdpMunging';
 
 // PeerJS's default cloud broker (0.peerjs.com) is used purely for signaling —
 // exchanging SDP/ICE candidates. Once WebRTC negotiation completes, audio flows
-// peer-to-peer directly between the two phones on the local WiFi network; no
-// media ever touches the signaling server.
+// peer-to-peer directly between the two phones whenever a direct/STUN-assisted
+// path is possible.
+//
+// On a shared local WiFi network, STUN alone (PeerJS's default) is normally
+// enough. Across two arbitrary networks — e.g. one phone on mobile data behind
+// carrier-grade NAT — a direct path frequently isn't possible, and without a
+// TURN relay the call fails to connect at all rather than just sounding worse.
+// The TURN servers below are the Open Relay Project's free public demo relay,
+// fine for this POC but NOT appropriate for production or privacy-sensitive
+// use: if a direct/STUN path can't be found, audio is relayed through this
+// third-party server in the clear (still DTLS-SRTP encrypted in transit, but
+// it is a third party in the path).
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
+
 export function createPeer(customId?: string): Peer {
   installSdpMunging();
-  return customId ? new Peer(customId) : new Peer();
+  const options = { config: { iceServers: ICE_SERVERS } };
+  return customId ? new Peer(customId, options) : new Peer(options);
 }
 
 export function generateReadableRoomId(): string {
